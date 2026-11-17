@@ -69,6 +69,42 @@ async function main() {
       targetDate: new Date('2046-01-01'),
     },
   });
+  const vti = securities[0]!;
+  await prisma.dividend.createMany({
+    data: [0, 1, 2, 3].map((q) => ({
+      securityId: vti.id,
+      exDate: new Date(Date.UTC(2024, q * 3 + 2, 22)),
+      amount: 0.78 + q * 0.02,
+    })),
+    skipDuplicates: true,
+  });
+  await prisma.benchmark.upsert({
+    where: { symbol: 'SPY' },
+    update: {},
+    create: { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust' },
+  });
+  const watchlist = await prisma.watchlist.upsert({
+    where: { userId_name: { userId: user.id, name: 'Ideas' } },
+    update: {},
+    create: { userId: user.id, name: 'Ideas' },
+  });
+  await prisma.watchlistItem.createMany({
+    data: securities.slice(3).map((s) => ({ watchlistId: watchlist.id, securityId: s.id })),
+    skipDuplicates: true,
+  });
+  await prisma.liability.create({
+    data: {
+      userId: user.id, kind: 'MORTGAGE', name: 'Home mortgage', lender: 'Demo Bank',
+      principal: 320_000, balance: 291_500, interestRate: 0.0425, minPayment: 1850,
+    },
+  });
+  await prisma.exchangeRate.createMany({
+    data: [['USD', 'EUR', 0.92], ['USD', 'GBP', 0.79]].map(([base, quote, rate]) => ({
+      base: base as string, quote: quote as string, rate: rate as number,
+      source: 'seed', quotedAt: new Date(Date.UTC(2024, 0, 2)),
+    })),
+    skipDuplicates: true,
+  });
   console.info('Seeded demo data for', user.email);
 }
 

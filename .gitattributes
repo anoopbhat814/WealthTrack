@@ -1,0 +1,7 @@
+# Make GitHub count these in the repository language bar
+*.prisma linguist-detectable=true
+*.go linguist-detectable=true
+*.py linguist-detectable=true
+
+# Normalise line endings
+* text=auto eol=lf

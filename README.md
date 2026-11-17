@@ -22,6 +22,8 @@ Personal finances are scattered across brokerages, retirement plans, bank accoun
 
 WealthTrack consolidates all of it into a single system. It tracks accounts and holdings, keeps prices fresh through a dedicated market-data service, snapshots your net worth every night, reports tax lots under several cost-basis methods, evaluates price alerts, and projects future wealth with Monte Carlo simulation.
 
+The Go services are the primary backend: `marketdata` ships the `ingestd` ingest daemon and the `alertd` alert evaluator. They sit behind a Next.js frontend, alongside a Python forecast service and a Node worker.
+
 ## Key features
 
 - **Net-worth tracking** across brokerage, retirement, bank, credit card, crypto, real estate and loan accounts, with nightly historical snapshots.
@@ -187,6 +189,7 @@ Internal services:
 |---------|----------|-------------|
 | Forecast | `GET /healthz`, `POST /v1/forecast`, `POST /v1/optimize` | Health, simulation, optimisation |
 | Market data | `GET /healthz`, `GET /v1/quotes?symbols=` | Health, latest quotes |
+| Market data | `GET /v1/fx`, `/v1/fx/convert`, `/v1/dividends`, `/v1/corporate-actions/upcoming`, `/v1/news/sentiment`, `/v1/stream` | FX, dividends, corporate actions, sentiment, SSE price stream (mounted when configured) |
 
 ## Data model
 
@@ -205,6 +208,13 @@ Defined in [`prisma/schema.prisma`](prisma/schema.prisma) and documented in [doc
 | `NetWorthSnapshot` | Nightly asset, liability and net-worth history |
 | `CsvImport` | Broker import jobs and their status |
 | `ForecastRun` | Saved forecast runs |
+| `Dividend`, `CorporateAction` | Dividend history and splits/mergers per security |
+| `Watchlist`, `WatchlistItem`, `Benchmark` | Watched securities and comparison benchmarks |
+| `RecurringContribution` | Scheduled deposits toward accounts and goals |
+| `Liability`, `RealEstateAsset`, `Insurance`, `CryptoWallet` | Debts, property, policies and wallets outside brokerage accounts |
+| `TaxDocument` | Uploaded tax forms by year |
+| `ExchangeRate`, `NewsItem` | FX rate history; scored news headlines |
+| `Notification` | Delivered or pending user notifications |
 
 ## Testing
 

@@ -11,16 +11,25 @@ import (
 
 type Server struct {
 	provider provider.Provider
+	deps     Deps
 }
 
+// New builds the router with only the quote endpoints.
 func New(p provider.Provider) http.Handler {
-	s := &Server{provider: p}
+	return NewWithDeps(p, Deps{})
+}
+
+// NewWithDeps builds the router and mounts the optional endpoints whose
+// dependencies are present (FX, corporate actions, news, streaming).
+func NewWithDeps(p provider.Provider, d Deps) http.Handler {
+	s := &Server{provider: p, deps: d}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("GET /v1/quotes", s.quotes)
+	s.mountExtras(mux)
 	return mux
 }
 

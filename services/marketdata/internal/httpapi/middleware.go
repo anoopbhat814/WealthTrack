@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
+	"strconv"
+	"sync"
 	"time"
 )
 
@@ -69,4 +72,63 @@ func Recover(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// CORS allows browser clients from the given origins ("*" allows any).
+func CORS(origins ...string) Middleware {
+	allowed := make(map[string]bool, len(origins))
+	for _, o := range origins {
+		allowed[o] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && (allowed["*"] || allowed[origin]) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Request-ID")
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RateLimit applies a per-client fixed-window limit of n requests per window.
+func RateLimit(n int, window time.Duration) Middleware {
+	type bucket struct {
+		start time.Time
+		count int
+	}
+	var mu sync.Mutex
+	buckets := map[string]*bucket{}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := r.RemoteAddr
+			if host, _, err := net.SplitHostPort(key); err == nil {
+				key = host
+			}
+			now := time.Now()
+			mu.Lock()
+			b := buckets[key]
+			if b == nil || now.Sub(b.start) >= window {
+				b = &bucket{start: now}
+				buckets[key] = b
+			}
+			b.count++
+			over := b.count > n
+			retry := int(window.Seconds()) + 1
+			mu.Unlock()
+			if over {
+				w.Header().Set("Retry-After", strconv.Itoa(retry))
+				writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

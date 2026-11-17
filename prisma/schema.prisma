@@ -16,6 +16,13 @@ enum AlertStatus { ACTIVE TRIGGERED PAUSED EXPIRED }
 enum GoalKind { RETIREMENT HOME EDUCATION EMERGENCY TRAVEL CUSTOM }
 enum BudgetPeriod { WEEKLY MONTHLY YEARLY }
 enum ImportStatus { QUEUED PROCESSING DONE FAILED }
+enum DividendFrequency { MONTHLY QUARTERLY SEMI_ANNUAL ANNUAL SPECIAL }
+enum CorporateActionKind { SPLIT REVERSE_SPLIT SPIN_OFF MERGER SYMBOL_CHANGE }
+enum ContributionFrequency { WEEKLY BIWEEKLY MONTHLY QUARTERLY }
+enum LiabilityKind { MORTGAGE AUTO STUDENT PERSONAL CREDIT_CARD HELOC }
+enum InsuranceKind { LIFE HEALTH DISABILITY HOME AUTO UMBRELLA }
+enum TaxDocumentKind { FORM_1099_B FORM_1099_DIV FORM_1099_INT FORM_1099_R W2 K1 OTHER }
+enum NotificationChannel { EMAIL WEBHOOK PUSH IN_APP }
 
 model User {
   id          String     @id @default(cuid())
@@ -32,6 +39,14 @@ model User {
   snapshots   NetWorthSnapshot[]
   imports     CsvImport[]
   forecasts   ForecastRun[]
+  watchlists  Watchlist[]
+  contributions RecurringContribution[]
+  taxDocuments TaxDocument[]
+  liabilities Liability[]
+  insurancePolicies Insurance[]
+  realEstateAssets RealEstateAsset[]
+  cryptoWallets CryptoWallet[]
+  notifications Notification[]
 }
 
 model Account {
@@ -45,6 +60,8 @@ model Account {
   balance     Decimal     @db.Decimal(18, 4) @default(0)
   archived    Boolean     @default(false)
   transactions Transaction[]
+  contributions RecurringContribution[]
+  cryptoWallets CryptoWallet[]
   @@index([userId])
 }
 
@@ -71,6 +88,10 @@ model Security {
   holdings   Holding[]
   quotes     PriceQuote[]
   alerts     PriceAlert[]
+  dividends  Dividend[]
+  corporateActions CorporateAction[]
+  watchlistItems WatchlistItem[]
+  newsItems  NewsItem[]
 }
 
 model Holding {
@@ -158,6 +179,7 @@ model Goal {
   monthlyContribution Decimal @default(0) @db.Decimal(18, 4)
   targetDate    DateTime
   expectedReturn Decimal @default(0.06) @db.Decimal(6, 4)
+  contributions RecurringContribution[]
 }
 
 model PriceAlert {
@@ -204,4 +226,196 @@ model ForecastRun {
   params     Json
   result     Json
   createdAt  DateTime @default(now())
+}
+
+model Dividend {
+  id          String            @id @default(cuid())
+  securityId  String
+  security    Security          @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  exDate      DateTime          @db.Date
+  payDate     DateTime?         @db.Date
+  amount      Decimal           @db.Decimal(18, 6)
+  currency    String            @default("USD")
+  frequency   DividendFrequency @default(QUARTERLY)
+  createdAt   DateTime          @default(now())
+  @@unique([securityId, exDate])
+  @@index([exDate])
+  @@map("dividends")
+}
+
+model CorporateAction {
+  id         String              @id @default(cuid())
+  securityId String
+  security   Security            @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  kind       CorporateActionKind
+  exDate     DateTime            @db.Date
+  ratio      Decimal             @db.Decimal(12, 6)
+  notes      String?
+  @@unique([securityId, kind, exDate])
+  @@map("corporate_actions")
+}
+
+model Watchlist {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime        @default(now())
+  items     WatchlistItem[]
+  @@unique([userId, name])
+  @@map("watchlists")
+}
+
+model WatchlistItem {
+  id          String    @id @default(cuid())
+  watchlistId String
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  securityId  String
+  security    Security  @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  note        String?
+  addedAt     DateTime  @default(now())
+  @@unique([watchlistId, securityId])
+  @@index([securityId])
+  @@map("watchlist_items")
+}
+
+model Benchmark {
+  id          String   @id @default(cuid())
+  symbol      String   @unique
+  name        String
+  description String?
+  currency    String   @default("USD")
+  active      Boolean  @default(true)
+  @@map("benchmarks")
+}
+
+model RecurringContribution {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  goalId    String?
+  goal      Goal?                 @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  amount    Decimal               @db.Decimal(18, 4)
+  frequency ContributionFrequency @default(MONTHLY)
+  nextRunOn DateTime              @db.Date
+  active    Boolean               @default(true)
+  @@index([userId, active])
+  @@index([nextRunOn])
+  @@map("recurring_contributions")
+}
+
+model TaxDocument {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      TaxDocumentKind
+  taxYear   Int
+  issuer    String?
+  fileName  String
+  storageKey String
+  uploadedAt DateTime       @default(now())
+  @@index([userId, taxYear])
+  @@map("tax_documents")
+}
+
+model Liability {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind         LiabilityKind
+  name         String
+  lender       String?
+  principal    Decimal       @db.Decimal(18, 4)
+  balance      Decimal       @db.Decimal(18, 4)
+  interestRate Decimal       @db.Decimal(6, 4)
+  minPayment   Decimal       @default(0) @db.Decimal(18, 4)
+  maturesOn    DateTime?     @db.Date
+  realEstateAssets RealEstateAsset[]
+  @@index([userId, kind])
+  @@map("liabilities")
+}
+
+model Insurance {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        InsuranceKind
+  provider    String
+  policyNumber String?
+  coverage    Decimal       @db.Decimal(18, 4)
+  premium     Decimal       @db.Decimal(18, 4)
+  renewsOn    DateTime?     @db.Date
+  @@index([userId, renewsOn])
+  @@map("insurance_policies")
+}
+
+model RealEstateAsset {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mortgageId    String?
+  mortgage      Liability? @relation(fields: [mortgageId], references: [id], onDelete: SetNull)
+  name          String
+  address       String?
+  purchasePrice Decimal    @db.Decimal(18, 4)
+  estimatedValue Decimal   @db.Decimal(18, 4)
+  purchasedOn   DateTime?  @db.Date
+  valuedAt      DateTime   @default(now())
+  @@index([userId])
+  @@map("real_estate_assets")
+}
+
+model CryptoWallet {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  label     String
+  chain     String
+  address   String
+  createdAt DateTime @default(now())
+  @@unique([chain, address])
+  @@index([userId])
+  @@map("crypto_wallets")
+}
+
+model ExchangeRate {
+  id        BigInt   @id @default(autoincrement())
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(18, 8)
+  source    String
+  quotedAt  DateTime
+  @@unique([base, quote, quotedAt])
+  @@index([base, quote])
+  @@map("exchange_rates")
+}
+
+model NewsItem {
+  id          String   @id @default(cuid())
+  securityId  String
+  security    Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  headline    String
+  url         String?
+  sentiment   Decimal  @db.Decimal(5, 4)
+  publishedAt DateTime
+  @@index([securityId, publishedAt])
+  @@map("news_items")
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel
+  title     String
+  body      String
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+  @@index([userId, readAt])
+  @@map("notifications")
 }
