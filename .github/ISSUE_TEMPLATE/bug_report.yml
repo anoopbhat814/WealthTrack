@@ -1,0 +1,33 @@
+name: Bug report
+description: Something is not working as expected
+labels: [bug, triage]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open /budgets\n2. ..."
+    validations: { required: true }
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Web app, API routes, Worker, Market data service, Forecast service, Database, CI / deploy]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.4.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact tokens, account numbers and personal data.
+      render: shell

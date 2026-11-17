@@ -1,0 +1,23 @@
+name: Migrations
+on:
+  pull_request:
+    paths: ['prisma/**']
+jobs:
+  deploy-dry-run:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: wealthtrack, POSTGRES_PASSWORD: changeme, POSTGRES_DB: wealthtrack }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wealthtrack:changeme@localhost:5432/wealthtrack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --exit-code --shadow-database-url "$DATABASE_URL"

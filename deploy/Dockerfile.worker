@@ -1,0 +1,7 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY apps/worker apps/worker
+COPY packages/csv-import packages/csv-import
+RUN npm ci --workspace apps/worker --include-workspace-root
+CMD ["node", "apps/worker/src/index.js"]

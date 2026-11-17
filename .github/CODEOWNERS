@@ -1,0 +1,6 @@
+*                      @wealthtrack/maintainers
+/apps/web/             @wealthtrack/web
+/apps/worker/          @wealthtrack/platform
+/services/marketdata/  @wealthtrack/platform
+/services/forecast/    @wealthtrack/quant
+/prisma/               @wealthtrack/maintainers

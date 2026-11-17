@@ -1,0 +1,13 @@
+[project]
+name = "wealthtrack-forecast"
+version = "0.4.0"
+description = "Monte Carlo forecasting and portfolio optimisation for WealthTrack"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

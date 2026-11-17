@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType { BROKERAGE RETIREMENT BANK CREDIT_CARD CRYPTO REAL_ESTATE LOAN }
+enum AssetClass { EQUITY FIXED_INCOME CASH CRYPTO REAL_ESTATE COMMODITY ALTERNATIVE }
+enum TransactionType { BUY SELL DIVIDEND INTEREST DEPOSIT WITHDRAWAL FEE SPLIT TRANSFER }
+enum CostBasisMethod { FIFO LIFO HIFO AVERAGE }
+enum AlertCondition { ABOVE BELOW PCT_CHANGE_UP PCT_CHANGE_DOWN }
+enum AlertStatus { ACTIVE TRIGGERED PAUSED EXPIRED }
+enum GoalKind { RETIREMENT HOME EDUCATION EMERGENCY TRAVEL CUSTOM }
+enum BudgetPeriod { WEEKLY MONTHLY YEARLY }
+enum ImportStatus { QUEUED PROCESSING DONE FAILED }
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  name        String?
+  baseCurrency String    @default("USD")
+  costBasis   CostBasisMethod @default(FIFO)
+  createdAt   DateTime   @default(now())
+  accounts    Account[]
+  portfolios  Portfolio[]
+  budgets     Budget[]
+  goals       Goal[]
+  alerts      PriceAlert[]
+  snapshots   NetWorthSnapshot[]
+  imports     CsvImport[]
+  forecasts   ForecastRun[]
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  institution String?
+  type        AccountType
+  currency    String      @default("USD")
+  balance     Decimal     @db.Decimal(18, 4) @default(0)
+  archived    Boolean     @default(false)
+  transactions Transaction[]
+  @@index([userId])
+}
+
+model Portfolio {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  benchmark   String?   @default("SPY")
+  createdAt   DateTime  @default(now())
+  holdings    Holding[]
+  @@unique([userId, name])
+}
+
+model Security {
+  id         String      @id @default(cuid())
+  symbol     String      @unique
+  name       String
+  assetClass AssetClass
+  currency   String      @default("USD")
+  exchange   String?
+  sector     String?
+  holdings   Holding[]
+  quotes     PriceQuote[]
+  alerts     PriceAlert[]
+}
+
+model Holding {
+  id          String    @id @default(cuid())
+  portfolioId String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  securityId  String
+  security    Security  @relation(fields: [securityId], references: [id])
+  quantity    Decimal   @db.Decimal(24, 8)
+  targetWeight Decimal? @db.Decimal(6, 4)
+  lots        TaxLot[]
+  transactions Transaction[]
+  @@unique([portfolioId, securityId])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  accountId   String
+  account     Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  holdingId   String?
+  holding     Holding?        @relation(fields: [holdingId], references: [id])
+  type        TransactionType
+  quantity    Decimal?        @db.Decimal(24, 8)
+  price       Decimal?        @db.Decimal(18, 4)
+  amount      Decimal         @db.Decimal(18, 4)
+  fee         Decimal         @default(0) @db.Decimal(18, 4)
+  realizedGain Decimal?       @db.Decimal(18, 4)
+  category    String?
+  memo        String?
+  occurredAt  DateTime
+  budgetCategoryId String?
+  budgetCategory BudgetCategory? @relation(fields: [budgetCategoryId], references: [id])
+  @@index([accountId, occurredAt])
+}
+
+model TaxLot {
+  id          String   @id @default(cuid())
+  holdingId   String
+  holding     Holding  @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  acquiredAt  DateTime
+  quantity    Decimal  @db.Decimal(24, 8)
+  remaining   Decimal  @db.Decimal(24, 8)
+  unitCost    Decimal  @db.Decimal(18, 4)
+  @@index([holdingId, acquiredAt])
+}
+
+model PriceQuote {
+  id         BigInt   @id @default(autoincrement())
+  securityId String
+  security   Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  price      Decimal  @db.Decimal(18, 4)
+  volume     BigInt?
+  source     String
+  quotedAt   DateTime
+  @@unique([securityId, quotedAt])
+}
+
+model Budget {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  period     BudgetPeriod   @default(MONTHLY)
+  categories BudgetCategory[]
+}
+
+model BudgetCategory {
+  id        String   @id @default(cuid())
+  budgetId  String
+  budget    Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name      String
+  limit     Decimal  @db.Decimal(18, 4)
+  rollover  Boolean  @default(false)
+  transactions Transaction[]
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind          GoalKind
+  name          String
+  targetAmount  Decimal  @db.Decimal(18, 4)
+  currentAmount Decimal  @default(0) @db.Decimal(18, 4)
+  monthlyContribution Decimal @default(0) @db.Decimal(18, 4)
+  targetDate    DateTime
+  expectedReturn Decimal @default(0.06) @db.Decimal(6, 4)
+}
+
+model PriceAlert {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  securityId  String
+  security    Security       @relation(fields: [securityId], references: [id])
+  condition   AlertCondition
+  threshold   Decimal        @db.Decimal(18, 4)
+  status      AlertStatus    @default(ACTIVE)
+  triggeredAt DateTime?
+  createdAt   DateTime       @default(now())
+  @@index([securityId, status])
+}
+
+model NetWorthSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  takenOn     DateTime @db.Date
+  assets      Decimal  @db.Decimal(18, 4)
+  liabilities Decimal  @db.Decimal(18, 4)
+  netWorth    Decimal  @db.Decimal(18, 4)
+  @@unique([userId, takenOn])
+}
+
+model CsvImport {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  broker    String
+  fileName  String
+  status    ImportStatus @default(QUEUED)
+  rowCount  Int          @default(0)
+  error     String?
+  createdAt DateTime     @default(now())
+}
+
+model ForecastRun {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  params     Json
+  result     Json
+  createdAt  DateTime @default(now())
+}
