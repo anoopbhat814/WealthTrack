@@ -4,7 +4,7 @@
   "private": true,
   "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "test": "vitest run" },
   "dependencies": {
-    "@prisma/client": "^5.10.0",
+    "@prisma/client": "^7.10.1",
     "@wealthtrack/types": "*",
     "@wealthtrack/utils": "*",
     "next": "^14.1.0",
